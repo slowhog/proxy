@@ -36,6 +36,7 @@ const setup = require('../');
 const debug = require('debug')('proxy');
 const spawn = require('child_process').spawn;
 const basicAuthParser = require('basic-auth-parser');
+const PacLookup = require('../dist/PacLookup').default;
 
 /**
  * Setup the HTTP "proxy server" instance.
@@ -49,7 +50,7 @@ setup(proxy);
  */
 
 debug("setting outbound proxy request's `agent` to `false`");
-proxy.agent = false;
+proxy.delegateLookup = PacLookup("http://192.168.123.246/wpad.dat");
 
 /**
  * Proxy outgoing request localAddress parameter

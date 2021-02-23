@@ -7,6 +7,7 @@ var url = require('url');
 var http = require('http');
 var assert = require('assert');
 var debug = require('debug')('proxy');
+const DirectDelegate = require('./dist/delegate').DirectDelegate;
 
 // log levels
 debug.request = require('debug')('proxy ← ← ←');
@@ -115,7 +116,7 @@ function onrequest(req, res) {
 	// pause the socket during authentication so no data is lost
 	socket.pause();
 
-	authenticate(server, req, function(err, auth) {
+	authenticate(server, req, async function(err, auth) {
 		socket.resume();
 		if (err) {
 			// an error occured during login!
@@ -193,15 +194,15 @@ function onrequest(req, res) {
 			debug.proxyRequest('adding new "Via" header: "%s"', headers.Via);
 		}
 
-		// custom `http.Agent` support, set `server.agent`
-		var agent = server.agent;
-		if (null != agent) {
+		// custom `http.Agent` support from delegate lookup
+		if (null != server.delegateLookup) {
+			const delegate = await server.delegateLookup(req.url);
+			const agent = delegate.agent;
 			debug.proxyRequest(
 				'setting custom `http.Agent` option for proxy request: %s',
 				agent
 			);
 			parsed.agent = agent;
-			agent = null;
 		}
 
 		if (null == parsed.port) {
@@ -309,14 +310,13 @@ function onrequest(req, res) {
  */
 
 function onconnect(req, socket, head) {
+	var server = this;
 	debug.request('%s %s HTTP/%s ', req.method, req.url, req.httpVersion);
 	assert(
 		!head || 0 == head.length,
 		'"head" should be empty for proxy requests'
 	);
 
-	var res;
-	var target;
 	var gotResponse = false;
 
 	// define request socket event listeners
@@ -368,14 +368,18 @@ function onconnect(req, socket, head) {
 		}
 	}
 
-	function ontargetconnect() {
+	function ontargetconnect(target, needToRespond) {
 		debug.proxyResponse('proxy target %s "connect" event', req.url);
-		debug.response('HTTP/1.1 200 Connection established');
-		gotResponse = true;
 		res.removeListener('finish', onfinish);
 
-		res.writeHead(200, 'Connection established');
-		res.flushHeaders();
+		if (needToRespond) {
+			debug.response('HTTP/1.1 200 Connection established');
+			res.writeHead(200, 'Connection established');
+			res.flushHeaders();
+		} else {
+			debug.response('Connetion eastablished by delegate');
+		}
+		gotResponse = true;
 
 		// relinquish control of the `socket` from the ServerResponse instance
 		res.detachSocket(socket);
@@ -412,7 +416,7 @@ function onconnect(req, socket, head) {
 	// pause the socket during authentication so no data is lost
 	socket.pause();
 
-	authenticate(this, req, function(err, auth) {
+	authenticate(this, req, async function(err, auth) {
 		socket.resume();
 		if (err) {
 			// an error occured during login!
@@ -425,14 +429,18 @@ function onconnect(req, socket, head) {
 		var parts = req.url.split(':');
 		var host = parts[0];
 		var port = +parts[1];
-		var opts = { host: host, port: port };
+		var opts = { host: host, port: port, url: req.url };
+		var url = "https://"
 
 		debug.proxyRequest('connecting to proxy target %j', opts);
-		target = net.connect(opts);
-		target.on('connect', ontargetconnect);
-		target.on('close', ontargetclose);
-		target.on('error', ontargeterror);
-		target.on('end', ontargetend);
+		const delegate = server.delegateLookup ? 
+			await server.delegateLookup("https://" + req.url) : DirectDelegate;
+		delegate.connect(opts, ontargetconnect)
+		 	.then(target => {
+				target.on('close', ontargetclose);
+				target.on('error', ontargeterror);
+				target.on('end', ontargetend);
+			}, ontargeterror);
 	});
 }
 

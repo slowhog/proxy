@@ -4,6 +4,7 @@
   "description": "An HTTP proxy written with Node.js (think Squid)",
   "main": "proxy.js",
   "scripts": {
+    "build": "tsc",
     "test": "mocha --reporter spec",
     "start": "node ./bin/proxy.js"
   },
@@ -30,11 +31,13 @@
   "dependencies": {
     "args": "5.0.1",
     "basic-auth-parser": "0.0.2",
-    "debug": "^4.1.1"
+    "debug": "^4.1.1",
+    "pac-proxy-agent": "^4.1.0"
   },
   "devDependencies": {
+    "@types/debug": "^4.1.5",
     "@types/mocha": "^5.2.7",
-    "@types/node": "^10.5.3",
+    "@types/node": "^14.14.31",
     "@typescript-eslint/eslint-plugin": "1.6.0",
     "@typescript-eslint/parser": "1.1.0",
     "cpy-cli": "^2.0.0",

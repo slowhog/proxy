@@ -82,10 +82,10 @@ export class CachedPacResolver {
 	 * Loads the PAC proxy file from the source if necessary, and returns
 	 * a generated `FindProxyForURL()` resolver function to use.
 	 *
-	 * @api private
+	 * @api public
 	 */
-	private getResolver(): Promise<FindProxyForURL> {
-		if (!this.resolverPromise) {
+	public getResolver(reload?: false): Promise<FindProxyForURL> {
+		if (reload || !this.resolverPromise) {
 			this.resolverPromise = this.loadResolver();
 			this.resolverPromise.then(
 				this.clearAfterTTL,
@@ -187,6 +187,7 @@ export class CachedPacResolver {
 
 export const createPacLookup = (pacUrl: string, opts: CachedPacResolverOptions): DelegateLookup => {
 	const resolver = new CachedPacResolver(pacUrl, opts);
+	resolver.getResolver();
 	return async (target) => {
 		const proxies = await resolver.resolve(target);
 		const delegate = createProxiesDelegate(proxies, opts);

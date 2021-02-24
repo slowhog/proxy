@@ -368,7 +368,8 @@ function onconnect(req, socket, head) {
 		}
 	}
 
-	function ontargetconnect(target, needToRespond) {
+	function ontargetconnect(res, target, needToRespond) {
+		debug('Detect res TS: %j', res.testTS);
 		debug.proxyResponse('proxy target %s "connect" event', req.url);
 		debug.proxyResponse('need respond? %s, readable length %s', needToRespond, target.readableLength);
 		res.removeListener('finish', onfinish);
@@ -401,6 +402,8 @@ function onconnect(req, socket, head) {
 	res.chunkedEncoding = false;
 	res.useChunkedEncodingByDefault = false;
 	res.assignSocket(socket);
+	res.testTS = new Date();
+	debug('Setting res TS: %j', res.testTS);
 
 	// called for the ServerResponse's "finish" event
 	// XXX: normally, node's "http" module has a "finish" event listener that would
@@ -430,7 +433,8 @@ function onconnect(req, socket, head) {
 		var parts = req.url.split(':');
 		var host = parts[0];
 		var port = +parts[1];
-		var opts = { host: host, port: port, req };
+		// Capture options, particularly res before yield
+		var opts = { host: host, port: port, req, res };
 
 		debug.proxyRequest('connecting to proxy target %j', req.url);
 		const delegate = server.delegateLookup ? 
@@ -438,10 +442,10 @@ function onconnect(req, socket, head) {
 		try {
 			const target = await delegate.connect(opts, ontargetconnect);
 			target.on('close', ontargetclose);
-			target.on('error', (err) => ontargeterror(res, err));
+			target.on('error', (err) => ontargeterror(opts.res, err));
 			target.on('end', ontargetend);
 		} catch (err) {
-			ontargeterror(res, err)
+			ontargeterror(opts.res, err)
 		};
 	});
 }

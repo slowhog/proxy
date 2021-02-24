@@ -1,4 +1,4 @@
-import { IncomingMessage } from 'http';
+import { IncomingMessage, ServerResponse } from 'http';
 import net from 'net';
 import { SocksProxy, SocksClient, SocksClientOptions } from 'socks';
 import { SocksProxyAgent } from 'socks-proxy-agent';
@@ -10,8 +10,8 @@ const debug = require('debug')('delegate');
 
 export type DelegateLookup = (target: string) => Promise<Delegate>;
 
-export type ConnectOptions = net.TcpSocketConnectOpts & { req: IncomingMessage };
-export type onConnectCallback = (socket: net.Socket, needToRespond: boolean) => void;
+export type ConnectOptions = net.TcpSocketConnectOpts & { req: IncomingMessage, res: ServerResponse };
+export type onConnectCallback = (res: ServerResponse, socket: net.Socket, needToRespond: boolean) => void;
 
 export type Delegate = {
     agent?: Agent,
@@ -31,7 +31,7 @@ export const DirectDelegate: Delegate = {
             const socket = net.connect(port, host);
             socket.on('connect', () => {
                 debug("Conneced established with %s:%s", host, port);
-                onConnect(socket, true);
+                onConnect(opts.res, socket, true);
                 resolve(socket);
             });
             socket.on('error', reject);
@@ -54,7 +54,7 @@ export const socksDelegate = (proxy: SocksProxy): Delegate => {
 				}
 			}
 			const client = await SocksClient.createConnection(options);
-            onConnect(client.socket, true);
+            onConnect(opts.res, client.socket, true);
 			return client.socket;
 		}
 	};
@@ -88,7 +88,7 @@ export const httpDelegate = (agentOpts: HttpsProxyAgentOptions): Delegate => {
                         socket.write(`Proxy-Authorization: ${agentOpts.auth}\r\n`)
                     }
                     socket.write('\r\n');
-                    onConnect(socket, false);
+                    onConnect(opts.res, socket, false);
                     resolve(socket);
                 });
                 socket.on('error', reject);

@@ -203,8 +203,8 @@ export const createProxiesDelegate = (proxies: ProxyOptions[], opts: AgentOption
 			for (const delegate of delegates) {
 				debug("Connecting %s:%s ...", opts.host, opts.port);
 				try {
-					const socket = await delegate.connect(opts, (socket: net.Socket, needToRespond: boolean) => {
-						onConnect(socket, needToRespond);
+					const socket = await delegate.connect(opts, (res, socket, needToRespond) => {
+						onConnect(res, socket, needToRespond);
 					})
 					return socket;
 				} catch (error) {

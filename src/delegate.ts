@@ -67,24 +67,29 @@ export const httpDelegate = (agentOpts: HttpsProxyAgentOptions): Delegate => {
                 new HttpProxyAgent(agentOpts);
     return {
         agent, 
-        connect: async (opts, onConnect) => {
-            const port = opts.port;
-            const host = opts.host;
+        connect: (opts, onConnect) => {
+            const host = agentOpts.host || "localhost";
+            const port: number = (agentOpts.port) ? +agentOpts.port : 80;
             const req = opts.req;
+            debug('Tunneling to %s via proxy %s:%d', req.url, host, port);
             return new Promise((resolve, reject) => {
                 const socket = net.connect(port, host);
                 socket.on('connect', () => {
+                    debug(`CONNECT ${req.url} HTTP/${req.httpVersion}`);
                     socket.write(`CONNECT ${req.url} HTTP/${req.httpVersion}\r\n`);
+                    // Convey original headers
                     Object.entries(req.headers).forEach(([header, value]) => {
+                      debug(`${header}: ${value}`);
                       socket.write(`${header}: ${value}\r\n`)
                     })
                     // TODO: add authentication for proxy
                     if (agentOpts.auth) {
                         debug('setting proxy authorization header')
                         socket.write(`Proxy-Authorization: ${agentOpts.auth}\r\n`)
-                        onConnect(socket, false);
-                        resolve(socket);
                     }
+                    socket.write('\r\n');
+                    onConnect(socket, false);
+                    resolve(socket);
                 });
                 socket.on('error', reject);
             });

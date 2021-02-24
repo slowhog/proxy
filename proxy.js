@@ -195,7 +195,7 @@ function onrequest(req, res) {
 		}
 
 		// custom `http.Agent` support from delegate lookup
-		if (null != server.delegateLookup) {
+		if (server.delegateLookup) {
 			const delegate = await server.delegateLookup(req.url);
 			const agent = delegate.agent;
 			debug.proxyRequest(
@@ -346,7 +346,7 @@ function onconnect(req, socket, head) {
 		debug.proxyResponse('proxy target %s "end" event', req.url);
 	}
 
-	function ontargeterror(err) {
+	function ontargeterror(res, err) {
 		debug.proxyResponse(
 			'proxy target %s "error" event:\n%s',
 			req.url,
@@ -370,6 +370,7 @@ function onconnect(req, socket, head) {
 
 	function ontargetconnect(target, needToRespond) {
 		debug.proxyResponse('proxy target %s "connect" event', req.url);
+		debug.proxyResponse('need respond? %s, readable length %s', needToRespond, target.readableLength);
 		res.removeListener('finish', onfinish);
 
 		if (needToRespond) {
@@ -429,18 +430,19 @@ function onconnect(req, socket, head) {
 		var parts = req.url.split(':');
 		var host = parts[0];
 		var port = +parts[1];
-		var opts = { host: host, port: port, url: req.url };
-		var url = "https://"
+		var opts = { host: host, port: port, req };
 
-		debug.proxyRequest('connecting to proxy target %j', opts);
+		debug.proxyRequest('connecting to proxy target %j', req.url);
 		const delegate = server.delegateLookup ? 
 			await server.delegateLookup("https://" + req.url) : DirectDelegate;
-		delegate.connect(opts, ontargetconnect)
-		 	.then(target => {
-				target.on('close', ontargetclose);
-				target.on('error', ontargeterror);
-				target.on('end', ontargetend);
-			}, ontargeterror);
+		try {
+			const target = await delegate.connect(opts, ontargetconnect);
+			target.on('close', ontargetclose);
+			target.on('error', (err) => ontargeterror(res, err));
+			target.on('end', ontargetend);
+		} catch (err) {
+			ontargeterror(res, err)
+		};
 	});
 }
 

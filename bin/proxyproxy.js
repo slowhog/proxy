@@ -12,7 +12,7 @@ const pkg = require('../package');
 args.option(
 	'port',
 	'Port number to the proxy server should bind to',
-	3128,
+	8080,
 	parseInt
 )
 	.option(
@@ -36,6 +36,8 @@ const setup = require('../');
 const debug = require('debug')('proxy');
 const spawn = require('child_process').spawn;
 const basicAuthParser = require('basic-auth-parser');
+const PacLookup = require('../dist/PacLookup').default;
+const { StaticLookup, httpDelegate } = require('../dist/delegate');
 
 /**
  * Setup the HTTP "proxy server" instance.
@@ -48,8 +50,7 @@ setup(proxy);
  * Outbound proxy requests will use `agent: false`.
  */
 
-debug("setting outbound proxy request's `agent` to `false`");
-proxy.delegateLookup = false;
+proxy.delegateLookup = StaticLookup(httpDelegate({ host: 'localhost', port: 3128 }));
 
 /**
  * Proxy outgoing request localAddress parameter

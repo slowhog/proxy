@@ -199,17 +199,22 @@ export const createProxiesDelegate = (proxies: ProxyOptions[], opts: AgentOption
 	return {
 		agent: new ProxiesAgent(delegates, opts),
 		connect: async (opts, onConnect) => {
+			let lastError;
 			for (const delegate of delegates) {
+				debug("Connecting %s:%s ...", opts.host, opts.port);
 				try {
 					const socket = await delegate.connect(opts, (socket: net.Socket, needToRespond: boolean) => {
 						onConnect(socket, needToRespond);
 					})
 					return socket;
 				} catch (error) {
+					lastError = error;
+					debug("Error %o", error);
 					continue;
 				}
 			}
-			throw new Error("Exhausted proxies");
+			debug("Exhausted proxies, throw error from last attempt");
+			throw lastError;
 		}
 	};
 };
